@@ -1,0 +1,29 @@
+{
+  "model_name": "XGBoost_Optimized",
+  "features": [
+    "ret_1",
+    "ret_3",
+    "ret_5",
+    "ret_10",
+    "ret_20",
+    "vol_5",
+    "vol_10",
+    "vol_20",
+    "dd_20",
+    "range_pct",
+    "rsi_14",
+    "macd_signal",
+    "bb_position",
+    "momentum_10",
+    "obv_change",
+    "atr_14",
+    "ema_ratio",
+    "volume_sma_ratio"
+  ],
+  "trained_at": "2026-02-09T17:40:11.563627",
+  "test_accuracy": 0.49190283400809715,
+  "test_f1": 0.5360443622920518,
+  "test_precision": 0.4965753424657534,
+  "test_recall": 0.5823293172690763,
+  "test_roc_auc": 0.4920498319809852
+}

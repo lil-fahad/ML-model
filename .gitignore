@@ -26,6 +26,9 @@ Thumbs.db
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
+# Testing
+.pytest_cache/
+
 # Local development
 *.log
 *.tmp
