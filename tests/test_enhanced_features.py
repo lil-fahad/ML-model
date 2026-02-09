@@ -26,6 +26,7 @@ from enhanced_features import (
     create_target,
     ENHANCED_FEATURES,
 )
+from utils import FeatureEngineeringError
 
 
 @pytest.fixture
@@ -172,7 +173,7 @@ class TestEnhancedFeatures:
             # Missing high, low, volume
         })
         
-        with pytest.raises(ValueError, match="Missing required columns"):
+        with pytest.raises(FeatureEngineeringError, match="missing required columns"):
             build_enhanced_features(incomplete_df)
     
     def test_build_features_case_insensitive(self, sample_ohlcv_data):
