@@ -113,7 +113,7 @@ def main():
                 st.error("Not enough data rows for LSTM. Need more history.")
                 return
 
-            checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+            checkpoint = torch.load(model_path, map_location="cpu", weights_only=True)
             lstm_model = LSTMClassifier(
                 input_size=checkpoint["input_size"],
                 hidden_size=checkpoint["hidden_size"],

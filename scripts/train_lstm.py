@@ -113,14 +113,17 @@ def main():
     # 3. Train LSTM
     logger.info("\n2. Training LSTM model...")
     lookback = DEFAULT_LOOKBACK
+    hidden_size = 64
+    num_layers = 2
+    dropout = 0.3
     model, history = train_lstm(
         X_train,
         y_train,
         X_val=X_test,
         y_val=y_test,
-        hidden_size=64,
-        num_layers=2,
-        dropout=0.3,
+        hidden_size=hidden_size,
+        num_layers=num_layers,
+        dropout=dropout,
         lr=1e-3,
         epochs=30,
         batch_size=64,
@@ -143,9 +146,9 @@ def main():
         {
             "model_state_dict": model.state_dict(),
             "input_size": X_train.shape[1],
-            "hidden_size": 64,
-            "num_layers": 2,
-            "dropout": 0.3,
+            "hidden_size": hidden_size,
+            "num_layers": num_layers,
+            "dropout": dropout,
             "lookback": lookback,
             "features": LSTM_FEATURES,
         },

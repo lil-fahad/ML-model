@@ -139,7 +139,7 @@ def train_lstm(
     ).to(device)
 
     train_ds = prepare_sequences(X_train, y_train, lookback)
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=False)  # preserve temporal order
 
     val_loader = None
     if X_val is not None and y_val is not None:
