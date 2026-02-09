@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
+import os
+import pathlib
 import joblib
 
-m = joblib.load("hybrid_model.pkl")
+HERE = pathlib.Path(__file__).resolve().parent
+ROOT = HERE.parent
+model_path = ROOT / "models" / "hybrid_model.pkl"
+
+m = joblib.load(model_path)
 print("Loaded:", type(m))
 
 est = m

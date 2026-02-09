@@ -1,8 +1,12 @@
 import os
+import sys
 import pandas as pd
 import numpy as np
 import joblib
 import streamlit as st
+
+# Add src directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 try:
     import yfinance as yf
