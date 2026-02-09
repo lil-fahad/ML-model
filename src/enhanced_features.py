@@ -8,6 +8,9 @@ import pandas as pd
 from typing import List, Tuple
 import logging
 
+from ta.momentum import StochasticOscillator
+from ta.trend import ADXIndicator
+
 logger = logging.getLogger(__name__)
 
 # Original 10 features for backward compatibility
@@ -36,6 +39,8 @@ ENHANCED_FEATURES = [
     "atr_14",
     "ema_ratio",
     "volume_sma_ratio",
+    "stoch_k",
+    "adx_14",
 ]
 
 
@@ -93,6 +98,41 @@ def compute_obv_change(close: pd.Series, volume: pd.Series, period: int = 10) ->
     obv = (volume * direction).cumsum()
     obv_change = obv.pct_change(period)
     return obv_change.replace([np.inf, -np.inf], 0).fillna(0)
+
+
+def compute_stochastic_k(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14, smooth: int = 3) -> pd.Series:
+    """
+    Compute normalized Stochastic %K oscillator (0-1 range).
+
+    Args:
+        high: High price series.
+        low: Low price series.
+        close: Close price series.
+        window: Lookback window for %K.
+        smooth: Smoothing window for %K.
+
+    Returns:
+        Series of normalized %K values between 0 and 1.
+    """
+    stoch = StochasticOscillator(high=high, low=low, close=close, window=window, smooth_window=smooth)
+    return (stoch.stoch() / 100.0).clip(0, 1).fillna(0.5)
+
+
+def compute_adx(high: pd.Series, low: pd.Series, close: pd.Series, window: int = 14) -> pd.Series:
+    """
+    Compute normalized Average Directional Index (0-1 range).
+
+    Args:
+        high: High price series.
+        low: Low price series.
+        close: Close price series.
+        window: Lookback window for ADX.
+
+    Returns:
+        Series of normalized ADX values between 0 and 1.
+    """
+    adx_indicator = ADXIndicator(high=high, low=low, close=close, window=window)
+    return (adx_indicator.adx() / 100.0).clip(0, 1).fillna(0.0)
 
 
 def build_enhanced_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -168,6 +208,12 @@ def build_enhanced_features(df: pd.DataFrame) -> pd.DataFrame:
     # Volume trend
     vol_sma = volume.rolling(20).mean()
     out["volume_sma_ratio"] = (volume / vol_sma) - 1
+
+    # Stochastic oscillator (%K)
+    out["stoch_k"] = compute_stochastic_k(high, low, close)
+
+    # Average Directional Index (trend strength)
+    out["adx_14"] = compute_adx(high, low, close)
     
     # Clean up
     out = out.replace([np.inf, -np.inf], np.nan)

@@ -82,6 +82,8 @@ All original features plus:
 - `atr_14` - Average True Range (normalized)
 - `ema_ratio` - EMA 12/26 ratio (trend indicator)
 - `volume_sma_ratio` - Volume relative to 20-day SMA
+- `stoch_k` - Normalized Stochastic %K oscillator (0-1)
+- `adx_14` - Normalized Average Directional Index (trend strength)
 
 ## Model Performance
 
