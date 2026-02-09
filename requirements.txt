@@ -12,6 +12,9 @@ xgboost>=2.0
 lightgbm>=4.0
 optuna>=3.5
 
+# Deep learning
+torch>=2.0
+
 # Technical analysis indicators
 ta>=0.11
 
