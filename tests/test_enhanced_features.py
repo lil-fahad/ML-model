@@ -20,6 +20,8 @@ from enhanced_features import (
     compute_bollinger_position,
     compute_atr,
     compute_obv_change,
+    compute_stochastic_k,
+    compute_adx,
     build_enhanced_features,
     create_target,
     ENHANCED_FEATURES,
@@ -114,6 +116,26 @@ class TestTechnicalIndicators:
             sample_ohlcv_data["volume"]
         )
         assert not np.isinf(obv).any(), "OBV should not have infinite values"
+
+    def test_stochastic_range(self, sample_ohlcv_data):
+        """Stochastic %K should be between 0 and 1 after normalization."""
+        stoch_k = compute_stochastic_k(
+            sample_ohlcv_data["high"],
+            sample_ohlcv_data["low"],
+            sample_ohlcv_data["close"],
+        )
+        valid = stoch_k.dropna()
+        assert (valid >= 0).all() and (valid <= 1).all(), "Stochastic %K should be normalized to 0-1"
+
+    def test_adx_range(self, sample_ohlcv_data):
+        """ADX should be between 0 and 1 after normalization."""
+        adx = compute_adx(
+            sample_ohlcv_data["high"],
+            sample_ohlcv_data["low"],
+            sample_ohlcv_data["close"],
+        )
+        valid = adx.dropna()
+        assert (valid >= 0).all() and (valid <= 1).all(), "ADX should be normalized to 0-1"
 
 
 class TestEnhancedFeatures:
