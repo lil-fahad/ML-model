@@ -1,0 +1,19 @@
+{
+  "features": [
+    "ret_1",
+    "ret_3",
+    "ret_5",
+    "ret_10",
+    "ret_20",
+    "vol_5",
+    "vol_10",
+    "vol_20",
+    "dd_20",
+    "range_pct"
+  ],
+  "target": "target_up (1 if next close > close else 0)",
+  "trained_on_tickers": 120,
+  "rows": 47731,
+  "test_accuracy": 0.5202681470619043,
+  "test_f1": 0.5217209690893901
+}
