@@ -217,12 +217,9 @@ def build_enhanced_features(df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         df.columns = [c.lower() for c in df.columns]
         
-        # Validate required columns
+        # Validate required columns (check columns before checking row count)
         required = ["close", "high", "low", "volume"]
-        # Check columns first before row count
-        df_columns_lower = [col.lower() for col in df.columns]
-        required_lower = [col.lower() for col in required]
-        missing_columns = [col for col in required_lower if col not in df_columns_lower]
+        missing_columns = [col for col in required if col not in df.columns]
         if missing_columns:
             raise ValueError(
                 f"Input OHLCV data missing required columns: {missing_columns}. "
