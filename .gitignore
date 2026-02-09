@@ -12,6 +12,7 @@ env/
 # Model files (binary, restored locally)
 models/*.pkl
 !models/*.pkl.b64
+models/*.pt
 
 # IDE
 .vscode/

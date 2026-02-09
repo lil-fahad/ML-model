@@ -1,6 +1,6 @@
 # Hybrid Stock Predictor (Streamlit)
 
-Local Streamlit UI to run ML models on **engineered technical features** for stock price direction prediction.
+Local Streamlit UI to run ML models on **engineered technical features** for stock price direction prediction. Supports both classical ML (sklearn/xgboost) and deep learning (LSTM) models.
 
 ## Project Structure
 
@@ -14,17 +14,21 @@ ML-model/
 ├── models/                     # ML model files
 │   ├── hybrid_model.pkl.b64       # Original model (10 features)
 │   ├── enhanced_model.pkl.b64     # Enhanced model (18 features)
+│   ├── lstm_model.pt              # LSTM deep learning model
 │   └── *_meta.json                # Model metadata
 ├── scripts/                    # Utility scripts
 │   ├── restore_models.py       # Restores models from base64
-│   ├── train_model.py          # Train enhanced model
+│   ├── train_model.py          # Train enhanced ML model
+│   ├── train_lstm.py           # Train LSTM deep learning model
 │   └── inspect_model.py        # Inspects model structure
 ├── src/                        # Source modules
 │   ├── features.py             # Basic feature engineering
 │   ├── hybrid_features.py      # Hybrid model features
-│   └── enhanced_features.py    # Enhanced features with technical indicators
+│   ├── enhanced_features.py    # Enhanced features with technical indicators
+│   └── deep_learning.py        # LSTM model and utilities
 ├── tests/                      # Unit tests
-│   └── test_enhanced_features.py
+│   ├── test_enhanced_features.py
+│   └── test_deep_learning.py
 ├── requirements.txt            # Python dependencies
 └── README.md
 ```
@@ -53,6 +57,8 @@ streamlit run app\streamlit_app.py
 
 ## Training a New Model
 
+### Classical ML Model
+
 ```bash
 python scripts/train_model.py
 ```
@@ -63,6 +69,18 @@ This will:
 3. Train multiple models (LogisticRegression, RandomForest, GradientBoosting, XGBoost, LightGBM)
 4. Optimize hyperparameters with Optuna
 5. Save the best model to `models/enhanced_model.pkl.b64`
+
+### LSTM Deep Learning Model
+
+```bash
+python scripts/train_lstm.py
+```
+
+This will:
+1. Load all CSV files from `data/`
+2. Build enhanced features and create sliding-window sequences
+3. Train a 2-layer LSTM network with dropout regularization
+4. Save the model to `models/lstm_model.pt`
 
 ## Features
 
@@ -103,7 +121,17 @@ All original features plus:
 
 - **Core:** streamlit, pandas, numpy, scikit-learn, joblib, yfinance
 - **Enhanced ML:** xgboost, lightgbm, optuna
+- **Deep Learning:** torch (PyTorch)
 - **Testing:** pytest
+
+## Deep Learning Architecture
+
+The LSTM model (`src/deep_learning.py`) uses:
+- 2-layer LSTM with 64 hidden units
+- Dropout regularization (0.3)
+- Sliding-window sequences (20-day lookback)
+- Binary cross-entropy loss with Adam optimizer
+- 18 normalized technical features as input
 
 ## Notes
 

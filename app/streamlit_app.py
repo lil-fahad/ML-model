@@ -13,6 +13,12 @@ try:
 except Exception:
     yf = None
 
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
 from features import build_features
 
 APP_TITLE = "Hybrid Stock Predictor (Local)"
@@ -58,7 +64,11 @@ def main():
         st.header("Settings")
         ticker = st.text_input("Ticker", value="TSLA").strip().upper()
         source = st.selectbox("Data Source", ["data (local CSV)", "yfinance (live)"], index=0)
-        model_path = st.text_input("Model path", value="models/hybrid_model.pkl")
+        model_type = st.selectbox("Model Type", ["Classical ML (sklearn)", "Deep Learning (LSTM)"], index=0)
+        if model_type == "Classical ML (sklearn)":
+            model_path = st.text_input("Model path", value="models/hybrid_model.pkl")
+        else:
+            model_path = st.text_input("Model path", value="models/lstm_model.pt")
         data_dir = st.text_input("CSV folder (for local)", value="data")
         period = st.text_input("yfinance period", value="2y")
         interval = st.text_input("yfinance interval", value="1d")
@@ -88,52 +98,89 @@ def main():
         st.error(f"Failed to build features: {e}")
         return
 
-    # 3) Load model
-    try:
-        model = load_model(model_path)
-        # Get the exact feature order expected by the model (Pipeline's estimator)
-        feature_names = getattr(model, "feature_names_in_", None)
-        if feature_names is None and hasattr(model, "named_steps"):
-            est = list(model.named_steps.values())[-1]
-            feature_names = getattr(est, "feature_names_in_", None)
-        if feature_names is None:
-            # fallback to the known 10 features
-            feature_names = np.array(['ret_1','ret_3','ret_5','ret_10','ret_20','vol_5','vol_10','vol_20','dd_20','range_pct'])
-    except Exception as e:
-        st.error(f"Failed to load model: {e}")
-        return
+    # 3) Load model and predict
+    if model_type == "Deep Learning (LSTM)":
+        # --- LSTM path ---
+        if not HAS_TORCH:
+            st.error("PyTorch is not installed. Install it with: pip install torch")
+            return
+        try:
+            from enhanced_features import build_enhanced_features
+            from deep_learning import LSTMClassifier, predict_lstm, LSTM_FEATURES, DEFAULT_LOOKBACK
 
-    # 4) Latest row prediction
-    latest = feats_df.iloc[[-1]].copy()
-    # normalize feature names (features.py uses lowercase already)
-    for c in list(latest.columns):
-        latest.rename(columns={c: c.lower()}, inplace=True)
+            features_dl = build_enhanced_features(candles).dropna()
+            if len(features_dl) < DEFAULT_LOOKBACK + 1:
+                st.error("Not enough data rows for LSTM. Need more history.")
+                return
 
-    missing = [f for f in feature_names if f not in latest.columns]
-    if missing:
-        st.error(f"Missing required features: {missing}")
-        st.write("Available columns:", list(latest.columns))
-        return
+            checkpoint = torch.load(model_path, map_location="cpu", weights_only=False)
+            lstm_model = LSTMClassifier(
+                input_size=checkpoint["input_size"],
+                hidden_size=checkpoint["hidden_size"],
+                num_layers=checkpoint["num_layers"],
+                dropout=checkpoint.get("dropout", 0.3),
+            )
+            lstm_model.load_state_dict(checkpoint["model_state_dict"])
+            lstm_model.eval()
 
-    X = latest[list(feature_names)].astype(float)
+            feature_names = checkpoint.get("features", LSTM_FEATURES)
+            lookback = checkpoint.get("lookback", DEFAULT_LOOKBACK)
 
-    # 5) Predict
-    try:
-        if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X)[0]
-            pred_class = int(model.predict(X)[0])
-            # assume binary: class 1 = UP
-            p_up = float(proba[1]) if len(proba) > 1 else float(proba[0])
-        else:
-            # fallback
-            pred = float(model.predict(X)[0])
-            pred_class = 1 if pred > 0 else 0
-            p_up = float(min(1.0, max(0.0, abs(pred))))
-    except Exception as e:
-        st.error(f"Prediction failed: {e}")
-        return
+            X_dl = features_dl[feature_names]
+            preds, probs = predict_lstm(lstm_model, X_dl, lookback=lookback)
+            if len(preds) == 0:
+                st.error("Not enough data after sequencing.")
+                return
 
-    direction = "UP" if pred_class == 1 else "DOWN"
+            pred_class = int(preds[-1])
+            p_up = float(probs[-1])
+
+        except Exception as e:
+            st.error(f"LSTM prediction failed: {e}")
+            return
+
+        direction = "UP" if pred_class == 1 else "DOWN"
+        X = features_dl[feature_names].iloc[[-1]]
+    else:
+        # --- Classical ML path ---
+        try:
+            model = load_model(model_path)
+            feature_names = getattr(model, "feature_names_in_", None)
+            if feature_names is None and hasattr(model, "named_steps"):
+                est = list(model.named_steps.values())[-1]
+                feature_names = getattr(est, "feature_names_in_", None)
+            if feature_names is None:
+                feature_names = np.array(['ret_1','ret_3','ret_5','ret_10','ret_20','vol_5','vol_10','vol_20','dd_20','range_pct'])
+        except Exception as e:
+            st.error(f"Failed to load model: {e}")
+            return
+
+        latest = feats_df.iloc[[-1]].copy()
+        for c in list(latest.columns):
+            latest.rename(columns={c: c.lower()}, inplace=True)
+
+        missing = [f for f in feature_names if f not in latest.columns]
+        if missing:
+            st.error(f"Missing required features: {missing}")
+            st.write("Available columns:", list(latest.columns))
+            return
+
+        X = latest[list(feature_names)].astype(float)
+
+        try:
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(X)[0]
+                pred_class = int(model.predict(X)[0])
+                p_up = float(proba[1]) if len(proba) > 1 else float(proba[0])
+            else:
+                pred = float(model.predict(X)[0])
+                pred_class = 1 if pred > 0 else 0
+                p_up = float(min(1.0, max(0.0, abs(pred))))
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
+            return
+
+        direction = "UP" if pred_class == 1 else "DOWN"
 
     # Layout
     col1, col2 = st.columns([1, 2], gap="large")
