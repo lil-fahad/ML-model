@@ -1,13 +1,24 @@
-# Hybrid Stock Predictor (Streamlit)
+# Hybrid Stock Predictor (Professional Edition)
 
-Local Streamlit UI to run ML models on **engineered technical features** for stock price direction prediction.
+Professional-grade local Streamlit UI to run ML models on **engineered technical features** for stock price direction prediction.
+
+## ✨ Key Features
+
+- **Professional Code Quality**: Comprehensive error handling, logging, and validation
+- **Type Safety**: Full type hints and data validation
+- **Configuration Management**: Centralized configuration for easy customization
+- **Robust Error Handling**: Custom exceptions and detailed error messages
+- **Enhanced UX**: Improved Streamlit interface with better feedback
+- **Modular Design**: Well-organized codebase with utility functions
+- **Comprehensive Testing**: Full test coverage with pytest
+- **Documentation**: Detailed docstrings for all functions
 
 ## Project Structure
 
 ```
 ML-model/
 ├── app/                        # Streamlit application
-│   └── streamlit_app.py
+│   └── streamlit_app.py       # Professional UI with enhanced error handling
 ├── data/                       # Stock data CSV files
 │   ├── AAPL.csv
 │   └── TSLA.csv
@@ -22,16 +33,39 @@ ML-model/
 ├── src/                        # Source modules
 │   ├── features.py             # Basic feature engineering
 │   ├── hybrid_features.py      # Hybrid model features
-│   └── enhanced_features.py    # Enhanced features with technical indicators
+│   ├── enhanced_features.py    # Enhanced features with technical indicators
+│   └── utils.py                # Utility functions (validation, error handling)
 ├── tests/                      # Unit tests
 │   └── test_enhanced_features.py
+├── config.py                   # Configuration management
+├── logging.conf                # Logging configuration
+├── Makefile                    # Common development tasks
+├── .editorconfig              # Editor configuration
 ├── requirements.txt            # Python dependencies
 └── README.md
 ```
 
 ## Quick Start
 
-### Linux / macOS
+### Using Make (Recommended)
+
+```bash
+# Install dependencies
+make install
+
+# Restore models
+make restore-models
+
+# Run tests
+make test
+
+# Start the app
+make run
+```
+
+### Manual Setup
+
+#### Linux / macOS
 
 ```bash
 python -m venv .venv
@@ -103,7 +137,57 @@ All original features plus:
 
 - **Core:** streamlit, pandas, numpy, scikit-learn, joblib, yfinance
 - **Enhanced ML:** xgboost, lightgbm, optuna
+- **Technical Analysis:** ta (python technical analysis library)
 - **Testing:** pytest
+
+## Professional Code Features
+
+### Error Handling
+- Custom exception classes: `DataValidationError`, `ModelLoadError`, `FeatureEngineeringError`
+- Comprehensive try-catch blocks with detailed error messages
+- Graceful degradation and user-friendly error reporting
+
+### Configuration Management
+- Centralized configuration in `config.py`
+- Feature parameters, model settings, and app configuration
+- Easy customization without code changes
+
+### Utilities
+- Data validation functions
+- Safe mathematical operations (division by zero handling)
+- Consistent logging throughout the application
+- Model feature validation
+
+### Code Quality
+- Full type hints for better IDE support
+- Comprehensive docstrings following Google style
+- Modular design with separation of concerns
+- EditorConfig for consistent formatting
+
+## Development
+
+### Running Tests
+```bash
+# Run all tests
+make test
+# or
+python -m pytest tests/ -v
+
+# Run with coverage (if installed)
+python -m pytest tests/ --cov=src --cov-report=html
+```
+
+### Code Quality
+```bash
+# Lint code
+make lint
+
+# Format code (if black/isort installed)
+make format
+
+# Clean temporary files
+make clean
+```
 
 ## Notes
 
