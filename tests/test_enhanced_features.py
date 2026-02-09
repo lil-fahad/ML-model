@@ -30,16 +30,16 @@ from enhanced_features import (
 def sample_ohlcv_data():
     """Create sample OHLCV data for testing."""
     np.random.seed(42)
-    n = 100
+    num_days = 100
     
     # Generate realistic-ish price data
-    close = 100 + np.cumsum(np.random.randn(n) * 2)
-    high = close + np.abs(np.random.randn(n)) * 2
-    low = close - np.abs(np.random.randn(n)) * 2
-    open_price = close + np.random.randn(n) * 0.5
-    volume = np.abs(np.random.randn(n) * 1000000) + 500000
+    close = 100 + np.cumsum(np.random.randn(num_days) * 2)
+    high = close + np.abs(np.random.randn(num_days)) * 2
+    low = close - np.abs(np.random.randn(num_days)) * 2
+    open_price = close + np.random.randn(num_days) * 0.5
+    volume = np.abs(np.random.randn(num_days) * 1000000) + 500000
     
-    dates = pd.date_range(start="2023-01-01", periods=n, freq="D")
+    dates = pd.date_range(start="2023-01-01", periods=num_days, freq="D")
     
     return pd.DataFrame({
         "date": dates,

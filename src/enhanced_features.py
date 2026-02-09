@@ -151,8 +151,8 @@ def build_enhanced_features(df: pd.DataFrame) -> pd.DataFrame:
     # Bollinger Bands position
     out["bb_position"] = compute_bollinger_position(close)
     
-    # Momentum
-    out["momentum_10"] = close.pct_change(10)
+    # Momentum (using 5-day window, different from ret_10)
+    out["momentum_10"] = (close / close.shift(10).rolling(3).mean()) - 1
     
     # OBV change
     out["obv_change"] = compute_obv_change(close, volume)
