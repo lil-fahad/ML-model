@@ -57,7 +57,7 @@ def download_ticker(ticker: str, period: str = "max", interval: str = "1d") -> p
 
     df = df.reset_index()
 
-    # Normalise column names to lowercase
+    # Normalize column names to lowercase
     rename = {}
     for col in df.columns:
         lower = col.lower() if isinstance(col, str) else str(col).lower()
