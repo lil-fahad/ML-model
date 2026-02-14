@@ -16,6 +16,7 @@ ML-model/
 │   ├── enhanced_model.pkl.b64     # Enhanced model (18 features)
 │   └── *_meta.json                # Model metadata
 ├── scripts/                    # Utility scripts
+│   ├── fetch_data.py           # Download stock data via yfinance
 │   ├── restore_models.py       # Restores models from base64
 │   ├── train_model.py          # Train enhanced model
 │   └── inspect_model.py        # Inspects model structure
@@ -37,6 +38,7 @@ ML-model/
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+python scripts/fetch_data.py          # Download stock data (~70 tickers, max history)
 python scripts/restore_models.py
 streamlit run app/streamlit_app.py
 ```
@@ -47,9 +49,30 @@ streamlit run app/streamlit_app.py
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python scripts\fetch_data.py          # Download stock data (~70 tickers, max history)
 python scripts\restore_models.py
 streamlit run app\streamlit_app.py
 ```
+
+## Fetching Data
+
+```bash
+# Download all default tickers (~70 popular stocks & ETFs, maximum history)
+python scripts/fetch_data.py
+
+# Download specific tickers only
+python scripts/fetch_data.py AAPL MSFT GOOG
+
+# Use a specific period instead of max
+python scripts/fetch_data.py --period 10y
+
+# Custom output directory
+python scripts/fetch_data.py --data-dir /path/to/data
+```
+
+The script downloads daily OHLCV data from Yahoo Finance for a curated set of
+tickers spanning Technology, Finance, Healthcare, Energy, Consumer, Industrial,
+and broad-market ETFs.  Each ticker is saved as `data/<TICKER>.csv`.
 
 ## Training a New Model
 
@@ -96,7 +119,8 @@ All original features plus:
 
 ## Data
 
-- Put your CSVs in `data/` as `TICKER.csv` (columns: Date, Open, High, Low, Close, Volume).
+- Run `python scripts/fetch_data.py` to download data for ~70 popular tickers (max history).
+- Put your own CSVs in `data/` as `TICKER.csv` (columns: Date, Open, High, Low, Close, Volume).
 - Or use the built-in `yfinance` option in the UI (if network allows).
 
 ## Dependencies
