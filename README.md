@@ -1,5 +1,7 @@
 # Hybrid Stock Predictor (Streamlit)
 
+> 🇸🇦 [اقرأ هذا بالعربية](README.ar.md)
+
 Local Streamlit UI to run ML models on **engineered technical features** for stock price direction prediction.
 
 ## Project Structure
