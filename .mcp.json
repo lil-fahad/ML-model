@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "kaggle": {
+      "url": "https://www.kaggle.com/mcp",
+      "headers": {
+        "Authorization": "Basic ${KAGGLE_BASIC_AUTH_TOKEN}"
+      }
+    }
+  }
+}
