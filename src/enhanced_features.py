@@ -246,6 +246,15 @@ def create_target_thresholded(
     1 if future_return > +atr_mult * atr_norm
     0 if future_return < -atr_mult * atr_norm
     NaN for the no-trade zone in between
+
+    Args:
+        df: Raw OHLCV DataFrame.
+        horizon: Prediction horizon used to compute future returns.
+        atr_period: Lookback period for ATR normalization.
+        atr_mult: Multiplier applied to ATR to form the no-trade band.
+
+    Returns:
+        Pandas Series aligned with df index containing 1 (long/bullish), 0 (short/avoid), or NaN (no-trade zone).
     """
     df = df.copy()
     df.columns = [c.lower() for c in df.columns]

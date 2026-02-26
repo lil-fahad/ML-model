@@ -44,12 +44,15 @@ class SevenGatesEngine:
 
     # Gate 1-3 placeholders (يمرر OK لأن المشروع الحالي لا يحسب spread/calendar/index regime)
     def gate1_universe(self, df: pd.DataFrame) -> Tuple[bool, str]:
+        """Placeholder for universe screening gate."""
         return True, "ok"
 
     def gate2_regime(self, df: pd.DataFrame) -> Tuple[bool, str]:
+        """Placeholder for regime filter gate."""
         return True, "ok"
 
     def gate3_event_risk(self, df: pd.DataFrame) -> Tuple[bool, str]:
+        """Placeholder for event/earnings risk gate."""
         return True, "ok"
 
     # Gate 4: decision via band + percentiles ranking

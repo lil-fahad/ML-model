@@ -22,6 +22,7 @@ from src.seven_system import SevenGatesEngine
 from src.seven_config import DEFAULT_SEVEN
 
 APP_TITLE = "Hybrid Stock Predictor (Local)"
+FALLBACK_VOL = 0.01
 
 def load_candles_from_csv(data_dir: str, ticker: str) -> pd.DataFrame:
     path = os.path.join(data_dir, f"{ticker.upper()}.csv")
@@ -169,15 +170,19 @@ def main():
         if "q_hi" in gate4 or "q_lo" in gate4:
             st.write("Percentiles:", {"q_hi": gate4.get("q_hi"), "q_lo": gate4.get("q_lo")})
         close_lookup = {c.lower(): c for c in candles.columns}
-        close_col = close_lookup.get("close") or close_lookup.get("close".lower()) or close_lookup.get("Close".lower())
+        close_col = close_lookup.get("close")
         last_close_price = None
         if close_col and close_col in candles.columns:
             last_close_price = float(candles[close_col].iloc[-1])
 
         if action == "LONG":
-            atr_norm = float(latest_full.get("atr_14", pd.Series([np.nan])).iloc[0]) if "atr_14" in latest_full.columns else float(max(latest_full.get("vol_20", pd.Series([0])).iloc[0], 0.01))
+            if "vol_20" in latest_full.columns:
+                vol_estimate = float(max(latest_full["vol_20"].iloc[0], FALLBACK_VOL))
+            else:
+                vol_estimate = FALLBACK_VOL
+            atr_norm = float(latest_full["atr_14"].iloc[0]) if "atr_14" in latest_full.columns else vol_estimate
             if np.isnan(atr_norm) or atr_norm <= 0:
-                atr_norm = float(max(latest_full.get("vol_20", pd.Series([0])).iloc[0], 0.01))
+                atr_norm = vol_estimate
             equity = st.number_input("Equity (capital)", min_value=0.0, value=10000.0, step=100.0, format="%.2f")
             if last_close_price is not None:
                 sizing = seven_engine.gate6_size(equity, last_close_price, atr_norm)
@@ -188,7 +193,7 @@ def main():
             else:
                 st.warning("Cannot compute sizing without close price.")
         else:
-            st.info("Seven System action is not LONG. Blocked by Seven.")
+            st.info(f"Seven System action is {action}. Reason: {gate4.get('reason', 'no trade signal')}")
 
     with col2:
         st.subheader("Price chart (Close)")
