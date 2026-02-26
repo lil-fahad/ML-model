@@ -1,5 +1,7 @@
 # Hybrid Stock Predictor (Streamlit)
 
+> 🇸🇦 [اقرأ هذا بالعربية](README.ar.md)
+
 Local Streamlit UI to run ML models on **engineered technical features** for stock price direction prediction.
 
 ## Project Structure
@@ -8,14 +10,13 @@ Local Streamlit UI to run ML models on **engineered technical features** for sto
 ML-model/
 ├── app/                        # Streamlit application
 │   └── streamlit_app.py
-├── data/                       # Stock data CSV files
-│   ├── AAPL.csv
-│   └── TSLA.csv
+├── data/                       # Stock data CSV files (populated by download_data.py)
 ├── models/                     # ML model files
 │   ├── hybrid_model.pkl.b64       # Original model (10 features)
 │   ├── enhanced_model.pkl.b64     # Enhanced model (18 features)
 │   └── *_meta.json                # Model metadata
 ├── scripts/                    # Utility scripts
+│   ├── download_data.py        # Download Kaggle stock market dataset
 │   ├── restore_models.py       # Restores models from base64
 │   ├── train_model.py          # Train enhanced model
 │   └── inspect_model.py        # Inspects model structure
@@ -50,6 +51,57 @@ pip install -r requirements.txt
 python scripts\restore_models.py
 streamlit run app\streamlit_app.py
 ```
+
+## Getting Data
+
+### Option A – Kaggle MCP Server (recommended)
+
+The project ships a `.mcp.json` file that points any MCP-enabled client
+(Claude Desktop, Cursor, VS Code with the MCP extension, etc.) at Kaggle's
+remote MCP server:
+
+```
+https://www.kaggle.com/mcp
+```
+
+#### 1. Generate your auth token
+
+Your Kaggle API key lives at [https://www.kaggle.com/settings/account](https://www.kaggle.com/settings/account) under **API → Create New Token**.
+Encode it as a Basic-auth token:
+
+```bash
+# Linux / macOS
+export KAGGLE_BASIC_AUTH_TOKEN=$(echo -n "YOUR_KAGGLE_USERNAME:YOUR_KAGGLE_KEY" | base64)
+```
+
+```powershell
+# Windows PowerShell
+$env:KAGGLE_BASIC_AUTH_TOKEN = [Convert]::ToBase64String(
+    [Text.Encoding]::ASCII.GetBytes("YOUR_KAGGLE_USERNAME:YOUR_KAGGLE_KEY"))
+```
+
+The `.mcp.json` file already references `${KAGGLE_BASIC_AUTH_TOKEN}`, so MCP
+clients will pick it up automatically once the env var is set.
+
+#### 2. Download the dataset via the MCP client
+
+Connect your MCP client to the server and run:
+
+```
+Download paultimothymooney/stock-market-data
+```
+
+The Kaggle MCP server will stream the dataset files into your session.
+
+### Option B – Python download script
+
+```bash
+# Requires KAGGLE_USERNAME and KAGGLE_KEY env vars (or ~/.kaggle/kaggle.json)
+python scripts/download_data.py
+```
+
+This fetches the same dataset via `kagglehub` and copies the CSV files into
+`data/`.
 
 ## Training a New Model
 
@@ -96,8 +148,14 @@ All original features plus:
 
 ## Data
 
-- Put your CSVs in `data/` as `TICKER.csv` (columns: Date, Open, High, Low, Close, Volume).
-- Or use the built-in `yfinance` option in the UI (if network allows).
+- Use the **Kaggle MCP server** (see "Getting Data" above) or run
+  `python scripts/download_data.py` to populate `data/` with the
+  `paultimothymooney/stock-market-data` dataset.
+- You can also add your own CSVs to `data/` as `TICKER.csv`
+  (columns: `date`, `open`, `high`, `low`, `close`, `volume`).
+- The `yfinance` option in the Streamlit UI also works when a network
+  connection is available.
+
 
 ## Dependencies
 
