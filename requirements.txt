@@ -18,5 +18,9 @@ optuna>=3.5
 # Technical analysis indicators
 ta>=0.11
 
+# Trading simulator
+gymnasium>=1.0
+gym-anytrading>=2.0
+
 # Testing
 pytest>=8.0
