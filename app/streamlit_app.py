@@ -22,6 +22,8 @@ from src.seven_config import DEFAULT_SEVEN
 
 APP_TITLE = "Hybrid Stock Predictor (Local)"
 FALLBACK_VOL = 0.01
+BASIC_FEATURE_COUNT = 10
+MIN_ROWS_FOR_PERCENTILES = 25
 
 def load_candles_from_csv(data_dir: str, ticker: str) -> pd.DataFrame:
     path = os.path.join(data_dir, f"{ticker.upper()}.csv")
@@ -102,15 +104,15 @@ def main():
     # 3) Build features (basic vs enhanced)
     try:
         feature_names = list(feature_names)
-        wants_enhanced = ("atr_14" in feature_names) or (len(feature_names) > 10)
+        wants_enhanced = ("atr_14" in feature_names) or (len(feature_names) > BASIC_FEATURE_COUNT)
         if wants_enhanced:
             feats_df = build_enhanced_features(candles)
         else:
             feats_df = build_features(candles)
 
         feats_df = feats_df.dropna().copy()
-        if len(feats_df) < 25:
-            raise RuntimeError("Not enough rows after feature engineering. Use more history (need >= ~25 for percentiles).")
+        if len(feats_df) < MIN_ROWS_FOR_PERCENTILES:
+            raise RuntimeError(f"Not enough rows after feature engineering. Use more history (need >= ~{MIN_ROWS_FOR_PERCENTILES} for percentiles).")
     except Exception as e:
         st.error(f"Failed to build features: {e}")
         return
@@ -174,7 +176,7 @@ def main():
         st.write("Reason:", decision.get("reason", ""))
         if "q_hi" in decision or "q_lo" in decision:
             st.write({"q_hi": decision.get("q_hi"), "q_lo": decision.get("q_lo")})
-        st.caption("Decision is based on no_trade_band + percentiles ranking (no 0.5 threshold anywhere).")
+        st.caption("Decision uses Seven System ranking instead of fixed probability thresholds.")
         st.write("Model expects features:", list(feature_names))
 
     with col2:
