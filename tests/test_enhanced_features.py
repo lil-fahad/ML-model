@@ -24,6 +24,7 @@ from enhanced_features import (
     compute_adx,
     build_enhanced_features,
     create_target,
+    create_target_thresholded,
     ENHANCED_FEATURES,
 )
 
@@ -201,6 +202,15 @@ class TestTarget:
         
         # They should be different (not identical)
         assert not (target_1 == target_5).all(), "Different horizons should produce different targets"
+
+    def test_create_target_thresholded_ternary(self, sample_ohlcv_data):
+        """Thresholded target should produce ternary labels with NaNs for no-trade."""
+        target = create_target_thresholded(sample_ohlcv_data, horizon=3, atr_period=5, atr_mult=0.2)
+        non_nan = target.dropna().unique()
+        assert set(non_nan).issubset({0, 1}), "Thresholded target should only contain 0, 1, or NaN"
+        assert target.isna().any(), "Thresholded target should include no-trade NaNs"
+        default_target = create_target_thresholded(sample_ohlcv_data)
+        assert default_target.isna().any(), "Default thresholded target should also include NaN zone"
 
 
 class TestIntegration:

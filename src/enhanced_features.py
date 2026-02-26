@@ -234,10 +234,51 @@ def create_target(df: pd.DataFrame, horizon: int = 1) -> pd.Series:
     return target
 
 
+def create_target_thresholded(
+    df: pd.DataFrame,
+    horizon: int = 5,
+    atr_period: int = 14,
+    atr_mult: float = 0.5
+) -> pd.Series:
+    """
+    Create ternary target using ATR-normalized bands.
+
+    1 if future_return > +atr_mult * atr_norm
+    0 if future_return < -atr_mult * atr_norm
+    NaN for the no-trade zone in between
+
+    Args:
+        df: Raw OHLCV DataFrame.
+        horizon: Prediction horizon used to compute future returns.
+        atr_period: Lookback period for ATR normalization.
+        atr_mult: Multiplier applied to ATR to form the no-trade band.
+
+    Returns:
+        Pandas Series aligned with df index containing 1 (long/bullish), 0 (short/avoid), or NaN (no-trade zone).
+    """
+    df = df.copy()
+    df.columns = [c.lower() for c in df.columns]
+    close = df["close"].astype(float)
+    high = df["high"].astype(float)
+    low = df["low"].astype(float)
+
+    future_return = close.shift(-horizon) / close - 1
+    atr_norm = compute_atr(high, low, close, period=atr_period)
+    threshold = atr_mult * atr_norm
+
+    target = pd.Series(np.nan, index=df.index, dtype=float)
+    target[future_return > threshold] = 1
+    target[future_return < -threshold] = 0
+    return target
+
+
 def prepare_train_data(
     df: pd.DataFrame,
     feature_cols: List[str] = None,
-    horizon: int = 1
+    horizon: int = 1,
+    use_thresholded: bool = False,
+    atr_period: int = 14,
+    atr_mult: float = 0.5
 ) -> Tuple[pd.DataFrame, pd.Series]:
     """
     Prepare training data with features and target.
@@ -255,7 +296,10 @@ def prepare_train_data(
         feature_cols = ENHANCED_FEATURES
     
     features_df = build_enhanced_features(df)
-    target = create_target(df, horizon)
+    if use_thresholded:
+        target = create_target_thresholded(df, horizon=horizon, atr_period=atr_period, atr_mult=atr_mult)
+    else:
+        target = create_target(df, horizon)
     
     # Align and drop NaN
     combined = features_df.copy()

@@ -5,8 +5,12 @@ import numpy as np
 import joblib
 import streamlit as st
 
-# Add src directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# Add project and src directories to path for imports
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
+SRC_DIR = os.path.join(ROOT_DIR, "src")
+for _p in [ROOT_DIR, SRC_DIR]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 try:
     import yfinance as yf
@@ -14,8 +18,11 @@ except Exception:
     yf = None
 
 from features import build_features
+from src.seven_system import SevenGatesEngine
+from src.seven_config import DEFAULT_SEVEN
 
 APP_TITLE = "Hybrid Stock Predictor (Local)"
+FALLBACK_VOL = 0.01
 
 def load_candles_from_csv(data_dir: str, ticker: str) -> pd.DataFrame:
     path = os.path.join(data_dir, f"{ticker.upper()}.csv")
@@ -82,6 +89,7 @@ def main():
     try:
         feats_df = build_features(candles)
         feats_df = feats_df.dropna().copy()
+        feats_df.columns = [c.lower() for c in feats_df.columns]
         if len(feats_df) < 5:
             raise RuntimeError("Not enough rows after feature engineering. Use more history.")
     except Exception as e:
@@ -104,36 +112,50 @@ def main():
         return
 
     # 4) Latest row prediction
-    latest = feats_df.iloc[[-1]].copy()
-    # normalize feature names (features.py uses lowercase already)
-    for c in list(latest.columns):
-        latest.rename(columns={c: c.lower()}, inplace=True)
-
-    missing = [f for f in feature_names if f not in latest.columns]
+    missing = [f for f in feature_names if f not in feats_df.columns]
     if missing:
         st.error(f"Missing required features: {missing}")
-        st.write("Available columns:", list(latest.columns))
+        st.write("Available columns:", list(feats_df.columns))
         return
-
-    X = latest[list(feature_names)].astype(float)
+    X_all = feats_df[list(feature_names)].astype(float)
+    latest_full = feats_df.iloc[[-1]].copy()
+    X = X_all.iloc[[-1]].astype(float)
 
     # 5) Predict
     try:
         if hasattr(model, "predict_proba"):
             proba = model.predict_proba(X)[0]
-            pred_class = int(model.predict(X)[0])
-            # assume binary: class 1 = UP
             p_up = float(proba[1]) if len(proba) > 1 else float(proba[0])
         else:
             # fallback
             pred = float(model.predict(X)[0])
-            pred_class = 1 if pred > 0 else 0
             p_up = float(min(1.0, max(0.0, abs(pred))))
     except Exception as e:
         st.error(f"Prediction failed: {e}")
         return
 
-    direction = "UP" if pred_class == 1 else "DOWN"
+    proba_series = None
+    if hasattr(model, "predict_proba"):
+        try:
+            proba_series = pd.Series(model.predict_proba(X_all)[:, 1])
+        except Exception:
+            proba_series = None
+
+    seven_engine = SevenGatesEngine(DEFAULT_SEVEN)
+    g1_ok, g1_reason = seven_engine.gate1_universe(feats_df)
+    g2_ok, g2_reason = seven_engine.gate2_regime(feats_df)
+    g3_ok, g3_reason = seven_engine.gate3_event_risk(feats_df)
+
+    if not g1_ok:
+        gate4 = {"action": "BLOCKED", "reason": f"gate1:{g1_reason}", "proba": p_up}
+    elif not g2_ok:
+        gate4 = {"action": "BLOCKED", "reason": f"gate2:{g2_reason}", "proba": p_up}
+    elif not g3_ok:
+        gate4 = {"action": "BLOCKED", "reason": f"gate3:{g3_reason}", "proba": p_up}
+    else:
+        gate4 = seven_engine.gate4_decision(p_up, proba_series)
+
+    action = gate4.get("action", "NO_TRADE")
 
     # Layout
     col1, col2 = st.columns([1, 2], gap="large")
@@ -141,9 +163,37 @@ def main():
     with col1:
         st.subheader("Result")
         st.metric("Ticker", ticker)
-        st.metric("Direction", direction)
+        st.metric("Seven Action", action)
         st.metric("Prob(UP)", f"{p_up*100:.2f}%")
         st.write("Model expects features:", list(feature_names))
+        st.write("Reason:", gate4.get("reason", ""))
+        if "q_hi" in gate4 or "q_lo" in gate4:
+            st.write("Percentiles:", {"q_hi": gate4.get("q_hi"), "q_lo": gate4.get("q_lo")})
+        close_lookup = {c.lower(): c for c in candles.columns}
+        close_col = close_lookup.get("close")
+        last_close_price = None
+        if close_col and close_col in candles.columns:
+            last_close_price = float(candles[close_col].iloc[-1])
+
+        if action == "LONG":
+            if "vol_20" in latest_full.columns:
+                vol_estimate = float(max(latest_full["vol_20"].iloc[0], FALLBACK_VOL))
+            else:
+                vol_estimate = FALLBACK_VOL
+            atr_norm = float(latest_full["atr_14"].iloc[0]) if "atr_14" in latest_full.columns else vol_estimate
+            if np.isnan(atr_norm) or atr_norm <= 0:
+                atr_norm = vol_estimate
+            equity = st.number_input("Equity (capital)", min_value=0.0, value=10000.0, step=100.0, format="%.2f")
+            if last_close_price is not None:
+                sizing = seven_engine.gate6_size(equity, last_close_price, atr_norm)
+                exits = seven_engine.gate7_exits(entry_price=last_close_price, stop_price=sizing["stop_price"])
+
+                st.write("Sizing:", sizing)
+                st.write("Exits:", exits)
+            else:
+                st.warning("Cannot compute sizing without close price.")
+        else:
+            st.info(f"Seven System action is {action}. Reason: {gate4.get('reason', 'no trade signal')}")
 
     with col2:
         st.subheader("Price chart (Close)")
@@ -176,7 +226,8 @@ def main():
     # Download signal snapshot
     out = X.copy()
     out["ticker"] = ticker
-    out["direction"] = direction
+    out["action"] = action
+    out["reason"] = gate4.get("reason", "")
     out["prob_up"] = p_up
     csv_bytes = out.to_csv(index=False).encode("utf-8")
     st.download_button("Download prediction CSV", data=csv_bytes, file_name=f"{ticker}_prediction.csv", mime="text/csv")

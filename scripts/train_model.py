@@ -33,7 +33,7 @@ ROOT = HERE.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from enhanced_features import (
-    build_enhanced_features, create_target, 
+    build_enhanced_features, create_target, create_target_thresholded,
     ENHANCED_FEATURES, FEATURES_10
 )
 
@@ -105,7 +105,7 @@ def prepare_dataset(
         
         # Build features
         features_df = build_enhanced_features(ticker_df)
-        target = create_target(ticker_df)
+        target = create_target_thresholded(ticker_df)
         
         # Combine
         features_df["target"] = target
