@@ -1,28 +1,29 @@
 import os
 import sys
+from pathlib import Path
 import pandas as pd
 import numpy as np
 import joblib
 import streamlit as st
 
-# Add project and src directories to path for imports
-ROOT_DIR = os.path.join(os.path.dirname(__file__), "..")
-SRC_DIR = os.path.join(ROOT_DIR, "src")
-for _p in [ROOT_DIR, SRC_DIR]:
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+# Add project root to path for imports (so `import src.*` works)
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 
 try:
     import yfinance as yf
 except Exception:
     yf = None
 
-from features import build_features
+from src.features import build_features
+from src.enhanced_features import build_enhanced_features
 from src.seven_system import SevenGatesEngine
 from src.seven_config import DEFAULT_SEVEN
 
 APP_TITLE = "Hybrid Stock Predictor (Local)"
 FALLBACK_VOL = 0.01
+BASIC_FEATURE_COUNT = 10
+MIN_ROWS_FOR_PERCENTILES = 25
 
 def load_candles_from_csv(data_dir: str, ticker: str) -> pd.DataFrame:
     path = os.path.join(data_dir, f"{ticker.upper()}.csv")
@@ -59,7 +60,7 @@ def load_model(model_path: str):
 def main():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     st.title(APP_TITLE)
-    st.caption("Runs locally. Uses hybrid_model.pkl (RandomForestClassifier pipeline) and builds the required 10 features.")
+    st.caption("Runs locally. Uses model proba then applies Seven System gates for ranking + strict risk management.")
 
     with st.sidebar:
         st.header("Settings")
@@ -85,18 +86,7 @@ def main():
         st.error(f"Failed to load candles: {e}")
         return
 
-    # 2) Build features
-    try:
-        feats_df = build_features(candles)
-        feats_df = feats_df.dropna().copy()
-        feats_df.columns = [c.lower() for c in feats_df.columns]
-        if len(feats_df) < 5:
-            raise RuntimeError("Not enough rows after feature engineering. Use more history.")
-    except Exception as e:
-        st.error(f"Failed to build features: {e}")
-        return
-
-    # 3) Load model
+    # 2) Load model (first, to decide which feature builder to use)
     try:
         model = load_model(model_path)
         # Get the exact feature order expected by the model (Pipeline's estimator)
@@ -111,51 +101,69 @@ def main():
         st.error(f"Failed to load model: {e}")
         return
 
-    # 4) Latest row prediction
+    # 3) Build features (basic vs enhanced)
+    try:
+        feature_names = list(feature_names)
+        wants_enhanced = ("atr_14" in feature_names) or (len(feature_names) > BASIC_FEATURE_COUNT)
+        if wants_enhanced:
+            feats_df = build_enhanced_features(candles)
+        else:
+            feats_df = build_features(candles)
+
+        feats_df = feats_df.dropna().copy()
+        if len(feats_df) < MIN_ROWS_FOR_PERCENTILES:
+            raise RuntimeError(f"Not enough rows after feature engineering. Use more history (need >= ~{MIN_ROWS_FOR_PERCENTILES} for percentiles).")
+    except Exception as e:
+        st.error(f"Failed to build features: {e}")
+        return
+
+    # 4) Prepare X for all clean rows (needed for ranking percentiles)
+    feats_df.columns = [c.lower() for c in feats_df.columns]
+    feature_names = [str(f).lower() for f in feature_names]
+
     missing = [f for f in feature_names if f not in feats_df.columns]
     if missing:
         st.error(f"Missing required features: {missing}")
         st.write("Available columns:", list(feats_df.columns))
         return
-    X_all = feats_df[list(feature_names)].astype(float)
-    latest_full = feats_df.iloc[[-1]].copy()
-    X = X_all.iloc[[-1]].astype(float)
 
-    # 5) Predict
+    X_all = feats_df[list(feature_names)].astype(float)
+
+    # 5) Predict probabilities (NO thresholding; Seven System decides)
     try:
         if hasattr(model, "predict_proba"):
-            proba = model.predict_proba(X)[0]
-            p_up = float(proba[1]) if len(proba) > 1 else float(proba[0])
+            proba_all = model.predict_proba(X_all)[:, 1]
+            proba_series = pd.Series(proba_all, index=X_all.index)
+            p_up = float(proba_series.iloc[-1])
         else:
             # fallback
-            pred = float(model.predict(X)[0])
-            p_up = float(min(1.0, max(0.0, abs(pred))))
+            pred_all = np.asarray(model.predict(X_all)).reshape(-1)
+            proba_series = pd.Series(np.clip(np.abs(pred_all), 0.0, 1.0), index=X_all.index)
+            p_up = float(proba_series.iloc[-1])
     except Exception as e:
         st.error(f"Prediction failed: {e}")
         return
 
-    proba_series = None
-    if hasattr(model, "predict_proba"):
-        try:
-            proba_series = pd.Series(model.predict_proba(X_all)[:, 1])
-        except Exception:
-            proba_series = None
+    # =========================
+    # Seven System integration (Gates 1-4, 6-7)
+    # =========================
+    engine = SevenGatesEngine(DEFAULT_SEVEN)
 
-    seven_engine = SevenGatesEngine(DEFAULT_SEVEN)
-    g1_ok, g1_reason = seven_engine.gate1_universe(feats_df)
-    g2_ok, g2_reason = seven_engine.gate2_regime(feats_df)
-    g3_ok, g3_reason = seven_engine.gate3_event_risk(feats_df)
+    ok1, r1 = engine.gate1_universe(feats_df)
+    ok2, r2 = engine.gate2_regime(feats_df)
+    ok3, r3 = engine.gate3_event_risk(feats_df)
 
-    if not g1_ok:
-        gate4 = {"action": "BLOCKED", "reason": f"gate1:{g1_reason}", "proba": p_up}
-    elif not g2_ok:
-        gate4 = {"action": "BLOCKED", "reason": f"gate2:{g2_reason}", "proba": p_up}
-    elif not g3_ok:
-        gate4 = {"action": "BLOCKED", "reason": f"gate3:{g3_reason}", "proba": p_up}
+    if not (ok1 and ok2 and ok3):
+        decision = {
+            "action": "BLOCKED",
+            "reason": f"gate_fail: g1={r1}, g2={r2}, g3={r3}",
+            "proba": float(p_up),
+        }
     else:
-        gate4 = seven_engine.gate4_decision(p_up, proba_series)
+        decision = engine.gate4_decision(p_up, proba_series)
 
-    action = gate4.get("action", "NO_TRADE")
+    if "seven_blocks" not in st.session_state:
+        st.session_state["seven_blocks"] = []
 
     # Layout
     col1, col2 = st.columns([1, 2], gap="large")
@@ -163,37 +171,13 @@ def main():
     with col1:
         st.subheader("Result")
         st.metric("Ticker", ticker)
-        st.metric("Seven Action", action)
         st.metric("Prob(UP)", f"{p_up*100:.2f}%")
+        st.metric("Seven Action", decision.get("action", ""))
+        st.write("Reason:", decision.get("reason", ""))
+        if "q_hi" in decision or "q_lo" in decision:
+            st.write({"q_hi": decision.get("q_hi"), "q_lo": decision.get("q_lo")})
+        st.caption("Decision uses Seven System ranking instead of fixed probability thresholds.")
         st.write("Model expects features:", list(feature_names))
-        st.write("Reason:", gate4.get("reason", ""))
-        if "q_hi" in gate4 or "q_lo" in gate4:
-            st.write("Percentiles:", {"q_hi": gate4.get("q_hi"), "q_lo": gate4.get("q_lo")})
-        close_lookup = {c.lower(): c for c in candles.columns}
-        close_col = close_lookup.get("close")
-        last_close_price = None
-        if close_col and close_col in candles.columns:
-            last_close_price = float(candles[close_col].iloc[-1])
-
-        if action == "LONG":
-            if "vol_20" in latest_full.columns:
-                vol_estimate = float(max(latest_full["vol_20"].iloc[0], FALLBACK_VOL))
-            else:
-                vol_estimate = FALLBACK_VOL
-            atr_norm = float(latest_full["atr_14"].iloc[0]) if "atr_14" in latest_full.columns else vol_estimate
-            if np.isnan(atr_norm) or atr_norm <= 0:
-                atr_norm = vol_estimate
-            equity = st.number_input("Equity (capital)", min_value=0.0, value=10000.0, step=100.0, format="%.2f")
-            if last_close_price is not None:
-                sizing = seven_engine.gate6_size(equity, last_close_price, atr_norm)
-                exits = seven_engine.gate7_exits(entry_price=last_close_price, stop_price=sizing["stop_price"])
-
-                st.write("Sizing:", sizing)
-                st.write("Exits:", exits)
-            else:
-                st.warning("Cannot compute sizing without close price.")
-        else:
-            st.info(f"Seven System action is {action}. Reason: {gate4.get('reason', 'no trade signal')}")
 
     with col2:
         st.subheader("Price chart (Close)")
@@ -221,14 +205,71 @@ def main():
             st.warning("Close column not found to plot.")
 
     st.subheader("Latest engineered features")
-    st.dataframe(X, use_container_width=True)
+    st.dataframe(X_all.tail(1), use_container_width=True)
+
+    # Gate 6-7 (only if LONG)
+    if decision.get("action") == "LONG":
+        # Determine last close price
+        last_close = None
+        if "close" in feats_df.columns:
+            last_close = float(feats_df["close"].iloc[-1])
+        else:
+            # fallback from candles
+            c_map = {c.lower(): c for c in candles.columns}
+            close_col = c_map.get("close")
+            if close_col is not None:
+                last_close = float(pd.to_numeric(candles[close_col], errors="coerce").dropna().iloc[-1])
+        if last_close is None:
+            st.error("Could not determine last close price for sizing.")
+            return
+
+        # ATR norm: prefer enhanced atr_14, else fallback to vol_20
+        if "atr_14" in feats_df.columns:
+            atr_norm = float(feats_df["atr_14"].iloc[-1])
+        else:
+            vol_20 = float(feats_df["vol_20"].iloc[-1]) if "vol_20" in feats_df.columns else FALLBACK_VOL
+            atr_norm = max(vol_20, FALLBACK_VOL)
+
+        with st.sidebar:
+            st.header("Risk (Seven System)")
+            equity = st.number_input("Equity (capital)", min_value=0.0, value=10000.0, step=100.0)
+
+        sizing = engine.gate6_size(equity=float(equity), price=last_close, atr_norm=atr_norm)
+        exits = engine.gate7_exits(entry_price=last_close, stop_price=sizing["stop_price"])
+
+        st.subheader("Seven System – Risk & Exits")
+        st.write({
+            "entry_price": last_close,
+            "atr_norm": atr_norm,
+            "shares": sizing["shares"],
+            "stop_price": sizing["stop_price"],
+            "take_profit": exits["take_profit"],
+            "partial_take_profit": exits["partial_take_profit"],
+            "move_stop_to_BE_at": exits["move_stop_to_BE_at"],
+            "time_stop_bars": exits["time_stop_bars"],
+        })
+    else:
+        st.session_state["seven_blocks"].append({
+            "ticker": ticker,
+            "proba_up": float(p_up),
+            "action": decision.get("action"),
+            "reason": decision.get("reason"),
+        })
+        st.warning("Blocked by Seven (no sizing shown).")
+        if st.session_state["seven_blocks"]:
+            st.subheader("Seven System – Block Log")
+            st.dataframe(pd.DataFrame(st.session_state["seven_blocks"]).tail(20), use_container_width=True)
 
     # Download signal snapshot
-    out = X.copy()
+    out = X_all.tail(1).copy()
     out["ticker"] = ticker
-    out["action"] = action
-    out["reason"] = gate4.get("reason", "")
     out["prob_up"] = p_up
+    out["seven_action"] = decision.get("action")
+    out["seven_reason"] = decision.get("reason")
+    if "q_hi" in decision:
+        out["q_hi"] = decision.get("q_hi")
+    if "q_lo" in decision:
+        out["q_lo"] = decision.get("q_lo")
     csv_bytes = out.to_csv(index=False).encode("utf-8")
     st.download_button("Download prediction CSV", data=csv_bytes, file_name=f"{ticker}_prediction.csv", mime="text/csv")
 

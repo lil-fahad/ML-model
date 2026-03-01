@@ -105,7 +105,8 @@ def prepare_dataset(
         
         # Build features
         features_df = build_enhanced_features(ticker_df)
-        target = create_target_thresholded(ticker_df)
+        # 3-zone target (drops ambiguous/no-trade samples)
+        target = create_target_thresholded(ticker_df, horizon=5, atr_period=14, atr_mult=0.5)
         
         # Combine
         features_df["target"] = target
@@ -114,7 +115,7 @@ def prepare_dataset(
         
         if len(features_df) > 50:  # Minimum rows for meaningful features
             all_X.append(features_df[feature_cols])
-            all_y.append(features_df["target"])
+            all_y.append(features_df["target"].astype(int))
             all_meta.append(features_df[["date", "ticker"]])
     
     X = pd.concat(all_X, ignore_index=True)
