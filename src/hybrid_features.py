@@ -15,6 +15,10 @@ FEATURES_10 = ["ret_1","ret_3","ret_5","ret_10","ret_20","vol_5","vol_10","vol_2
 
 def build_features_from_candles(candles: pd.DataFrame) -> pd.DataFrame:
     df = candles.copy()
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+
     df.columns = [c.lower() for c in df.columns]
     df = df.sort_values("date").reset_index(drop=True)
 
