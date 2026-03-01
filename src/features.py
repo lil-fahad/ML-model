@@ -20,7 +20,10 @@ LOOKBACK = 20
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+
     col_map = {c.lower(): c for c in df.columns}
     if "close" in col_map:
         df = df.rename(columns={col_map["close"]: "Close"})

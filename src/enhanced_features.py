@@ -146,8 +146,12 @@ def build_enhanced_features(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with all features and date column
     """
     df = df.copy()
+
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
+
     df.columns = [c.lower() for c in df.columns]
-    
+
     # Ensure we have required columns
     required = ["close", "high", "low", "volume"]
     missing = [c for c in required if c not in df.columns]
@@ -227,6 +231,8 @@ def create_target(df: pd.DataFrame, horizon: int = 1) -> pd.Series:
     Create binary target: 1 if price goes up in next `horizon` days, 0 otherwise.
     """
     df = df.copy()
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
     df.columns = [c.lower() for c in df.columns]
     close = df["close"].astype(float)
     future_return = close.shift(-horizon) / close - 1
@@ -257,6 +263,8 @@ def create_target_thresholded(
         Pandas Series aligned with df index containing 1 (long/bullish), 0 (short/avoid), or NaN (no-trade zone).
     """
     df = df.copy()
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = [col[0] for col in df.columns]
     df.columns = [c.lower() for c in df.columns]
     close = df["close"].astype(float)
     high = df["high"].astype(float)
