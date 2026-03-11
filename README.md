@@ -13,7 +13,7 @@ ML-model/
 ├── data/                       # Stock data CSV files (populated by download_data.py)
 ├── models/                     # ML model files
 │   ├── hybrid_model.pkl.b64       # Original model (10 features)
-│   ├── enhanced_model.pkl.b64     # Enhanced model (18 features)
+│   ├── enhanced_model.pkl.b64     # Enhanced model (20 features)
 │   └── *_meta.json                # Model metadata
 ├── scripts/                    # Utility scripts
 │   ├── download_data.py        # Download Kaggle stock market dataset
@@ -126,7 +126,7 @@ This will:
 - `dd_20` - 20-day drawdown
 - `range_pct` - Daily range as percentage
 
-### Enhanced Features (18)
+### Enhanced Features (20)
 All original features plus:
 - `rsi_14` - Relative Strength Index (normalized)
 - `macd_signal` - MACD signal line crossover
@@ -144,7 +144,7 @@ All original features plus:
 | Model | Accuracy | F1 Score | Notes |
 |-------|----------|----------|-------|
 | Original (RandomForest) | 52.03% | 52.17% | 10 features |
-| Enhanced (XGBoost Optimized) | 49.19% | 53.60% | 18 features, Optuna tuned |
+| Enhanced (XGBoost Optimized) | 47.17% | 53.48% | 20 features, Optuna tuned |
 
 **Note:** Stock prediction is inherently difficult. Models are optimized for F1 score to balance precision and recall.
 
